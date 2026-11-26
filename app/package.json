@@ -4,8 +4,9 @@
   "description": "Toastmasters Meeting Companion - A lightweight web app for feedback and voting",
   "type": "module",
   "scripts": {
-    "serve": "python3 -m http.server 8000 --directory public",
-    "dev": "python3 -m http.server 8000 --directory public"
+    "serve": "python3 -m http.server 8000 --directory ..",
+    "dev": "python3 -m http.server 8000 --directory ..",
+    "test": "node --test tests/*.test.cjs"
   },
   "keywords": [
     "toastmasters",

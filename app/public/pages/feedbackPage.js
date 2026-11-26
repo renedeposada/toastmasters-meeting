@@ -1,7 +1,8 @@
 // Feedback Form Page
 function renderFeedbackPage() {
   const { recipientId } = router.pageParams;
-  const recipient = SAMPLE_DATA.feedbackEligibleRecipients.find((r) => r.id === recipientId);
+  if (state.meeting.status !== 'active') return renderAttendeePage();
+  const recipient = state.getFeedbackRecipients().find((r) => r.id === recipientId);
 
   if (!recipient) {
     return '<div class="text-center p-4">Recipient not found</div>';
@@ -10,19 +11,20 @@ function renderFeedbackPage() {
   return `
     <div class="min-h-screen bg-gray-50">
       <div class="container">
-        <div class="header">
+        <div class="header participant-page-header">
           <div class="flex gap-4" style="align-items: center;">
             <a href="#home" class="nav-link">← Home</a>
             <h1 style="margin: 0;">Give Feedback</h1>
           </div>
+          ${renderAdminLink()}
         </div>
 
         <div class="p-4">
           <form id="feedbackForm" class="card space-y-6">
             <!-- Recipient Info -->
             <div>
-              <p class="font-semibold" style="font-size: 1.125rem;">${recipient.name}</p>
-              <p class="text-muted">${recipient.role}</p>
+              <p class="font-semibold" style="font-size: 1.125rem;">${escapeHtml(recipient.name)}</p>
+              <p class="text-muted">${escapeHtml(recipient.role)}</p>
             </div>
 
             <!-- What worked well -->
@@ -58,30 +60,30 @@ function renderFeedbackPage() {
       </div>
     </div>
 
-    <script>
-      const includeName = document.getElementById('includeName');
-      const nameField = document.getElementById('nameField');
-      const feedbackForm = document.getElementById('feedbackForm');
-
-      includeName.addEventListener('change', (e) => {
-        nameField.style.display = e.target.checked ? 'block' : 'none';
-      });
-
-      feedbackForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const wellWorked = document.getElementById('wellWorked').value;
-        const improve = document.getElementById('improve').value;
-        const senderName = document.getElementById('includeName').checked 
-          ? document.getElementById('senderName').value 
-          : null;
-
-        state.submitFeedback('${recipientId}', wellWorked, improve, senderName);
-        
-        // Show confirmation page
-        router.navigate('feedback-confirmation');
-      });
-    </script>
   `;
+}
+
+function attachFeedbackEvents() {
+  const form = document.getElementById('feedbackForm');
+  if (!form) return;
+  const includeName = document.getElementById('includeName');
+  const senderName = document.getElementById('senderName');
+  includeName.addEventListener('change', () => {
+    document.getElementById('nameField').style.display = includeName.checked ? 'block' : 'none';
+    senderName.required = includeName.checked;
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (state.meeting.status !== 'active') {
+      router.navigateTo('home');
+      return;
+    }
+    state.submitFeedback(router.pageParams.recipientId,
+      document.getElementById('wellWorked').value,
+      document.getElementById('improve').value,
+      includeName.checked ? senderName.value : null);
+    window.location.hash = 'feedback-confirmation';
+  });
 }
 
 // Feedback Confirmation Page
@@ -89,9 +91,10 @@ function renderFeedbackConfirmationPage() {
   return `
     <div class="center-screen">
       <div class="card" style="max-width: 24rem;">
-        <h2 class="text-center mb-4">Feedback sent</h2>
+        <h2 class="text-center mb-4">Feedback recorded</h2>
         <p class="text-center text-muted mb-6">Thank you for your feedback.</p>
         <a href="#home" class="btn btn-primary btn-block" style="text-align: center;">Back to Home</a>
+        <p class="text-center mt-4">${renderAdminLink()}</p>
       </div>
     </div>
   `;

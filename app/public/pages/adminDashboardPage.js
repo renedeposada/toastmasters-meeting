@@ -1,386 +1,264 @@
 // Admin Dashboard Page
 function renderAdminDashboard() {
-  const isLoggedIn = localStorage.getItem('adminLoggedIn');
-  if (!isLoggedIn) {
-    router.navigate('admin-login');
-    return renderAdminLoginPage();
-  }
-
-  const { status } = state.meeting;
+  const section = router.currentPage.slice('admin-'.length);
+  const sections = {
+    dashboard: ['Meeting Control', renderMeetingControlSection],
+    members: ['Members', renderMembersSection],
+    'meeting-setup': ['Meeting Setup', renderMeetingSetupSection],
+    results: ['Results', renderResultsSection],
+  };
+  const current = sections[section] ? section : 'dashboard';
 
   return `
     <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
       <div class="admin-header">
         <div class="admin-header-title">
-          <span>Doral Toastmasters - Admin</span>
-          <button onclick="handleAdminSignOut()" class="btn btn-link">Sign out</button>
+          <span>${escapeHtml(state.club.name)} - Admin</span>
+          <div class="admin-actions">
+            <a href="#home" class="nav-link">Participant view</a>
+            <button type="button" data-action="sign-out" class="btn btn-link">Sign out</button>
+          </div>
         </div>
-
-        <!-- Navigation -->
-        <div class="admin-nav">
-          <button class="tab admin-tab active" data-section="meeting-control">Meeting Control</button>
-          <button class="tab admin-tab" data-section="members">Members</button>
-          <button class="tab admin-tab" data-section="meeting-setup">Meeting Setup</button>
-          <button class="tab admin-tab" data-section="results">Results</button>
-        </div>
+        <nav class="admin-nav" aria-label="Administration">
+          ${Object.entries(sections).map(([id, [label]]) => `
+            <a href="#admin/${id}" class="tab admin-tab ${id === current ? 'active' : ''}">${label}</a>
+          `).join('')}
+        </nav>
       </div>
-
-      <!-- Content -->
-      <div class="admin-content">
-        <div id="adminContent"></div>
-      </div>
+      <div class="admin-content" id="adminContent">${sections[current][1]()}</div>
     </div>
-
-    <script>
-      function handleAdminSignOut() {
-        localStorage.removeItem('adminLoggedIn');
-        router.navigate('admin-login');
-      }
-
-      function renderAdminSection(section) {
-        const contentDiv = document.getElementById('adminContent');
-        
-        // Update active tab
-        document.querySelectorAll('.admin-tab').forEach((tab) => {
-          tab.classList.remove('active');
-        });
-        event.target.classList.add('active');
-
-        if (section === 'meeting-control') {
-          contentDiv.innerHTML = renderMeetingControlSection();
-        } else if (section === 'members') {
-          contentDiv.innerHTML = renderMembersSection();
-        } else if (section === 'meeting-setup') {
-          contentDiv.innerHTML = renderMeetingSetupSection();
-        } else if (section === 'results') {
-          contentDiv.innerHTML = renderResultsSection();
-        }
-
-        // Re-attach event listeners
-        attachAdminEventListeners();
-      }
-
-      document.querySelectorAll('.admin-tab').forEach((tab) => {
-        tab.addEventListener('click', (e) => {
-          renderAdminSection(e.target.dataset.section);
-        });
-      });
-
-      // Render default section
-      document.getElementById('adminContent').innerHTML = renderMeetingControlSection();
-      attachAdminEventListeners();
-    </script>
   `;
 }
 
 function renderMeetingControlSection() {
   const { status } = state.meeting;
-
-  let html = `
+  const actions = {
+    ready: '<button type="button" data-action="start" class="btn btn-success">Start meeting</button>',
+    active: '<button type="button" data-action="finish" class="btn btn-danger">Finish Meeting</button>',
+    finished: `<p class="text-muted">Feedback delivery is not available in this local prototype.</p>
+      <button type="button" data-action="reset" class="btn btn-warning">Reset for New Meeting</button>`,
+  };
+  return `
     <div class="card">
       <h2>Meeting Control</h2>
-      <div class="mt-6">
-        <p class="font-semibold mb-4">Status: <span style="color: #2563eb; text-transform: uppercase;">${status}</span></p>
-  `;
-
-  if (status === 'ready') {
-    html += `
-      <div class="space-y-4">
-        <p class="text-muted">The permanent club QR / URL remains unchanged.</p>
-        <button onclick="handleStartMeeting()" class="btn btn-success">Start meeting</button>
-      </div>
-    `;
-  } else if (status === 'active') {
-    html += `
-      <div class="space-y-4">
-        <p class="text-muted">Feedback and voting are available to attendees.</p>
-        <button onclick="handleFinishMeeting()" class="btn btn-danger">Finish Meeting</button>
-      </div>
-    `;
-  } else if (status === 'finished') {
-    html += `
-      <div class="space-y-4">
-        <p class="text-muted mb-4">Feedback and voting are closed.</p>
-        <div style="background-color: #f3f4f6; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
-          <h3>Feedback delivery</h3>
-          <div class="space-y-2 mt-4">
-            <div class="delivery-status">
-              <span class="delivery-recipient">Maria Smith</span>
-              <span class="delivery-status-badge delivery-sent">Sent</span>
-            </div>
-            <div class="delivery-status">
-              <span class="delivery-recipient">John Smith</span>
-              <span class="delivery-status-badge delivery-pending">Pending</span>
-            </div>
-            <div class="delivery-status">
-              <span class="delivery-recipient">Rene De Posada</span>
-              <div style="display: flex; gap: 1rem; align-items: center;">
-                <span class="delivery-status-badge delivery-failed">Failed</span>
-                <button onclick="handleRetryDelivery()" class="btn btn-link">Retry</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button onclick="handleResetMeeting()" class="btn btn-warning">Reset for New Meeting</button>
-      </div>
-    `;
-  }
-
-  html += `
-      </div>
+      <p class="font-semibold mb-4">Status: ${escapeHtml(status.toUpperCase())}</p>
+      ${actions[status]}
     </div>
   `;
-
-  return html;
 }
 
-function renderMembersSection() {
-  const members = state.club.members;
-
-  let html = `
-    <div class="card">
-      <div class="flex-between mb-6">
-        <h2 style="margin: 0;">Members</h2>
-        <button onclick="showMemberForm()" class="btn btn-primary">Add member</button>
-      </div>
-
-      <div class="space-y-3">
-  `;
-
-  members.forEach((member) => {
-    html += `
-      <div class="list-item">
-        <div>
-          <div class="font-semibold">${member.name}</div>
-          <div class="text-sm">${member.email}</div>
-        </div>
-        <div class="flex gap-2" style="align-items: center;">
-          <span class="status ${member.active ? 'status-active' : 'status-inactive'}">
-            ${member.active ? 'Active' : 'Inactive'}
-          </span>
-          <button onclick="editMember('${member.id}')" class="btn btn-link">Edit</button>
-        </div>
-      </div>
-    `;
-  });
-
-  html += `
-      </div>
-    </div>
-  `;
-
-  return html;
-}
-
-function renderMeetingSetupSection() {
-  const activeMembersOptions = state.club.members.filter((m) => m.active);
-
-  let speakersHtml = '';
-  for (let i = 1; i <= 3; i++) {
-    speakersHtml += `
+function renderMembersSection(editId = null, adding = false) {
+  const editing = state.club.members.find((member) => member.id === editId);
+  const form = adding || editing ? `
+    <form id="memberForm" class="card space-y-3" data-id="${editing ? escapeHtml(editing.id) : ''}">
+      <h3>${editing ? 'Edit member' : 'Add member'}</h3>
       <div class="form-group">
-        <label>Speaker ${i}</label>
-        <select>
-          <option value="">Select member</option>
-          ${activeMembersOptions.map((m) => `<option value="${m.id}">${m.name}</option>`).join('')}
-        </select>
+        <label for="memberName">Name</label>
+        <input id="memberName" name="name" type="text" required value="${editing ? escapeHtml(editing.name) : ''}">
       </div>
-    `;
-  }
+      <div class="form-group">
+        <label for="memberEmail">Email</label>
+        <input id="memberEmail" name="email" type="email" required value="${editing ? escapeHtml(editing.email) : ''}">
+      </div>
+      <label class="checkbox-label">
+        <input type="checkbox" name="active" ${!editing || editing.active ? 'checked' : ''}> Active
+      </label>
+      <button type="submit" class="btn btn-primary">Save member</button>
+      <button type="button" class="btn btn-link" data-action="cancel-member">Cancel</button>
+    </form>
+  ` : '';
 
   return `
     <div class="card">
       <div class="flex-between mb-6">
-        <div>
-          <h2 style="margin: 0;">Meeting Setup</h2>
-          <p class="text-muted text-sm mt-1">Status: Ready</p>
-        </div>
+        <h2>Members</h2>
+        <button type="button" data-action="add-member" class="btn btn-primary">Add member</button>
       </div>
-
-      <div class="space-y-8">
-        <!-- Prepared Speakers -->
-        <div>
-          <h3>Prepared Speakers</h3>
-          <div class="space-y-3">
-            ${speakersHtml}
-          </div>
-        </div>
-
-        <!-- Key Roles -->
-        <div>
-          <div class="space-y-3">
-            <div class="form-group">
-              <label>Toastmaster</label>
-              <select>
-                <option value="">Select member</option>
-                ${activeMembersOptions.map((m) => `<option value="${m.id}">${m.name}</option>`).join('')}
-              </select>
+      ${form}
+      <div class="space-y-3">
+        ${state.club.members.map((member) => `
+          <div class="list-item">
+            <div>
+              <div class="font-semibold">${escapeHtml(member.name)}</div>
+              <div class="text-sm">${escapeHtml(member.email)}</div>
             </div>
-
-            <div class="form-group">
-              <label>Topicsmaster</label>
-              <select>
-                <option value="">Select member</option>
-                ${activeMembersOptions.map((m) => `<option value="${m.id}">${m.name}</option>`).join('')}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>General Evaluator</label>
-              <select>
-                <option value="">Select member</option>
-                ${activeMembersOptions.map((m) => `<option value="${m.id}">${m.name}</option>`).join('')}
-              </select>
+            <div class="flex gap-2">
+              <span class="status ${member.active ? 'status-active' : 'status-inactive'}">${member.active ? 'Active' : 'Inactive'}</span>
+              <button type="button" data-action="edit-member" data-id="${escapeHtml(member.id)}" class="btn btn-link">Edit</button>
             </div>
           </div>
-        </div>
-
-        <!-- Evaluators -->
-        <div>
-          <h3>Evaluators</h3>
-          <div class="space-y-2 mb-4">
-            ${state.meeting.evaluators.length === 0
-              ? '<p class="text-muted text-sm">No evaluators added yet.</p>'
-              : state.meeting.evaluators
-                  .map(
-                    (evaluator) => `
-              <div class="delivery-status">
-                <span>${evaluator.name}</span>
-                <button class="btn btn-link" style="color: #dc2626;">Remove</button>
-              </div>
-            `
-                  )
-                  .join('')}
-          </div>
-          <button class="btn btn-link">Add evaluator</button>
-        </div>
-
-        <!-- Table Topics -->
-        <div>
-          <h3>Table Topics participants</h3>
-          <div class="space-y-2 mb-4">
-            ${state.meeting.tableTopicsParticipants.length === 0
-              ? '<p class="text-muted text-sm">No participants added yet.</p>'
-              : state.meeting.tableTopicsParticipants
-                  .map(
-                    (participant) => `
-              <div class="delivery-status">
-                <span>${participant.name}</span>
-                <button class="btn btn-link" style="color: #dc2626;">Remove</button>
-              </div>
-            `
-                  )
-                  .join('')}
-          </div>
-          <div class="flex gap-2">
-            <button class="btn btn-link">Add member</button>
-            <button class="btn btn-link">Add guest</button>
-          </div>
-        </div>
-
-        <!-- Save Button -->
-        <button class="btn btn-primary btn-block">Save setup</button>
+        `).join('')}
       </div>
     </div>
+  `;
+}
+
+function memberOptions(selectedIds = []) {
+  return state.club.members.filter((member) => member.active || selectedIds.includes(member.id))
+    .map((member) => `<option value="${escapeHtml(member.id)}" ${selectedIds.includes(member.id) ? 'selected' : ''}>${escapeHtml(member.name)}${member.active ? '' : ' (inactive)'}</option>`)
+    .join('');
+}
+
+function renderMeetingSetupSection() {
+  const meeting = state.meeting;
+  const select = (name, label, selected) => `
+    <div class="form-group">
+      <label for="${name}">${label}</label>
+      <select id="${name}" name="${name}">
+        <option value="">Select member</option>
+        ${memberOptions(selected ? [selected.id] : [])}
+      </select>
+    </div>`;
+  const guests = meeting.tableTopicsParticipants.filter((participant) => participant.isGuest)
+    .map((guest) => guest.name).join('\n');
+  return `
+    <form id="setupForm" class="card space-y-6">
+      <h2>Meeting Setup</h2>
+      <p class="text-muted">Status: ${escapeHtml(meeting.status)}</p>
+      <h3>Prepared Speakers</h3>
+      ${[0, 1, 2].map((index) => select(`speaker${index}`, `Speaker ${index + 1}`, meeting.preparedSpeakers[index])).join('')}
+      <h3>Key Roles</h3>
+      ${select('toastmaster', 'Toastmaster', meeting.toastmaster)}
+      ${select('topicsmaster', 'Topicsmaster', meeting.topicsmaster)}
+      ${select('generalEvaluator', 'General Evaluator', meeting.generalEvaluator)}
+      <div class="form-group">
+        <label for="evaluators">Evaluators (select multiple)</label>
+        <select id="evaluators" name="evaluators" multiple size="5">
+          ${memberOptions(meeting.evaluators.map((member) => member.id))}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="participants">Table Topics members (select multiple)</label>
+        <select id="participants" name="participants" multiple size="5">
+          ${memberOptions(meeting.tableTopicsParticipants.filter((participant) => !participant.isGuest).map((member) => member.id))}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="guests">Table Topics guests (one name per line)</label>
+        <textarea id="guests" name="guests">${escapeHtml(guests)}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Save setup</button>
+      <p id="setupMessage" role="status"></p>
+    </form>
   `;
 }
 
 function renderResultsSection() {
   const results = state.getVoteResults();
-
-  let html = `
+  return `
     <div class="card">
       <h2>Results</h2>
       <div class="space-y-8 mt-6">
-  `;
-
-  SAMPLE_DATA.votingCategories.forEach((category) => {
-    const categoryResults = results[category.id];
-    const sortedCandidates = Object.values(categoryResults.votes).sort((a, b) => b.count - a.count);
-    const maxVotes = sortedCandidates[0]?.count || 0;
-    const winnersCount = sortedCandidates.filter((c) => c.count === maxVotes).length;
-
-    html += `
-      <div>
-        <h3>${category.name}</h3>
-        <div class="space-y-2">
-    `;
-
-    if (sortedCandidates.length === 0 || sortedCandidates[0].count === 0) {
-      html += '<p class="text-muted">No votes yet.</p>';
-    } else {
-      sortedCandidates.forEach((item) => {
-        html += `
-          <div class="delivery-status">
-            <span>${item.candidate.name}</span>
-            <span class="font-semibold">${item.count}</span>
-          </div>
-        `;
-      });
-
-      html += `
-        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
-      `;
-
-      if (winnersCount > 1) {
-        const winners = sortedCandidates
-          .filter((c) => c.count === maxVotes)
-          .map((c) => c.candidate.name)
-          .join(', ');
-        html += `<p class="font-semibold">Tie: ${winners}</p>`;
-      } else {
-        html += `<p class="font-semibold">Winner: ${sortedCandidates[0]?.candidate.name}</p>`;
-      }
-
-      html += '</div>';
-    }
-
-    html += `
-        </div>
+        ${state.getVotingCategories().map((category) => {
+          const candidates = Object.values(results[category.id].votes).sort((a, b) => b.count - a.count);
+          const max = candidates[0]?.count || 0;
+          const winners = candidates.filter((candidate) => candidate.count === max);
+          return `
+            <div>
+              <h3>${escapeHtml(category.name)}</h3>
+              ${max === 0 ? '<p class="text-muted">No votes yet.</p>' : `
+                ${candidates.map((item) => `<div class="delivery-status"><span>${escapeHtml(item.candidate.name)}</span><span>${item.count}</span></div>`).join('')}
+                <p class="font-semibold">${winners.length > 1 ? 'Tie' : 'Winner'}: ${winners.map((item) => escapeHtml(item.candidate.name)).join(', ')}</p>
+              `}
+            </div>`;
+        }).join('')}
       </div>
-    `;
-  });
-
-  html += `
-      </div>
+      <h3 class="mt-6">Feedback recorded in this session</h3>
+      ${state.feedback.length ? state.feedback.map((item) => {
+        const recipient = state.getFeedbackRecipients().find((member) => member.id === item.recipientId);
+        return `<div class="card">
+          <strong>${escapeHtml(recipient?.name || item.recipientName || 'Former recipient')}</strong>
+          <p>From: ${escapeHtml(item.senderName || 'Anonymous')}</p>
+          <p>What worked well: ${escapeHtml(item.wellWorked)}</p>
+          <p>What could improve: ${escapeHtml(item.improve)}</p>
+        </div>`;
+      }).join('') : '<p class="text-muted">No feedback yet.</p>'}
     </div>
   `;
-
-  return html;
 }
 
 function attachAdminEventListeners() {
-  // Attach any dynamic event listeners needed
-}
+  const content = document.getElementById('adminContent');
+  if (!content) return;
 
-function handleStartMeeting() {
-  state.startMeeting();
-  router.navigate('admin-dashboard');
-}
+  document.querySelector('[data-action="sign-out"]').addEventListener('click', () => {
+    localStorage.removeItem('adminLoggedIn');
+    window.location.hash = 'admin/login';
+  });
+  content.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
+    const action = button.dataset.action;
+    if (action === 'start') {
+      state.startMeeting();
+      router.navigateTo('admin/dashboard');
+    } else if (action === 'finish' && confirm('Finish this meeting? Feedback and voting will close.')) {
+      state.finishMeeting();
+      router.navigateTo('admin/dashboard');
+    } else if (action === 'reset' && confirm('Reset for a new meeting? Current participants, feedback, votes, and results will be cleared.')) {
+      state.resetMeeting();
+      router.navigateTo('admin/dashboard');
+    } else if (action === 'add-member') {
+      content.innerHTML = renderMembersSection(null, true);
+    } else if (action === 'edit-member') {
+      content.innerHTML = renderMembersSection(button.dataset.id);
+    } else if (action === 'cancel-member') {
+      content.innerHTML = renderMembersSection();
+    }
+  });
 
-function handleFinishMeeting() {
-  if (confirm('Finish this meeting? Feedback and voting will close.')) {
-    state.finishMeeting();
-    router.navigate('admin-dashboard');
-  }
-}
-
-function handleResetMeeting() {
-  if (confirm('Reset for a new meeting? Current participants, feedback, votes, and results will be cleared.')) {
-    state.resetMeeting();
-    router.navigate('admin-dashboard');
-  }
-}
-
-function handleRetryDelivery() {
-  alert('Retry delivery initiated');
-}
-
-function showMemberForm() {
-  alert('Add member form - to be implemented');
-}
-
-function editMember(memberId) {
-  alert('Edit member form for ' + memberId + ' - to be implemented');
+  content.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const data = new FormData(form);
+    if (form.id === 'memberForm') {
+      const name = data.get('name').trim();
+      const email = data.get('email').trim();
+      if (!name || !email) {
+        alert('Enter a name and email address.');
+        return;
+      }
+      const member = state.club.members.find((item) => item.id === form.dataset.id);
+      if (member) {
+        Object.assign(member, { name, email, active: data.has('active') });
+        const meetingMembers = [
+          ...state.meeting.preparedSpeakers, state.meeting.toastmaster, state.meeting.topicsmaster,
+          state.meeting.generalEvaluator, ...state.meeting.evaluators, ...state.meeting.tableTopicsParticipants,
+        ];
+        meetingMembers.filter((item) => item && item.id === member.id).forEach((item) => { item.name = name; });
+      } else {
+        state.club.members.push({ id: state.createId(), name, email, active: data.has('active') });
+      }
+      content.innerHTML = renderMembersSection();
+    } else if (form.id === 'setupForm') {
+      const member = (id) => state.club.members.find((item) => item.id === id);
+      const selected = (name) => data.getAll(name).map(member).filter(Boolean).map(({ id, name }) => ({ id, name }));
+      const speakerIds = [data.get('speaker0'), data.get('speaker1'), data.get('speaker2')].filter(Boolean);
+      if (new Set(speakerIds).size !== speakerIds.length) {
+        document.getElementById('setupMessage').textContent = 'Select each speaker only once.';
+        return;
+      }
+      const role = (name) => {
+        const selectedMember = member(data.get(name));
+        return selectedMember ? { id: selectedMember.id, name: selectedMember.name } : null;
+      };
+      const oldGuests = state.meeting.tableTopicsParticipants.filter((item) => item.isGuest);
+      const guestNames = data.get('guests').split('\n').map((name) => name.trim()).filter(Boolean);
+      if (new Set(guestNames.map((name) => name.toLowerCase())).size !== guestNames.length) {
+        document.getElementById('setupMessage').textContent = 'Enter each guest only once.';
+        return;
+      }
+      state.meeting.preparedSpeakers = speakerIds.map(member).map(({ id, name }) => ({ id, name }));
+      state.meeting.toastmaster = role('toastmaster');
+      state.meeting.topicsmaster = role('topicsmaster');
+      state.meeting.generalEvaluator = role('generalEvaluator');
+      state.meeting.evaluators = selected('evaluators');
+      state.meeting.tableTopicsParticipants = [
+        ...selected('participants').map((item) => ({ ...item, isGuest: false })),
+        ...guestNames.map((name) => oldGuests.find((item) => item.name === name)
+          || { id: state.createId(), name, isGuest: true }),
+      ];
+      document.getElementById('setupMessage').textContent = 'Meeting setup saved.';
+    }
+  });
 }

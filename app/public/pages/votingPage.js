@@ -1,7 +1,8 @@
 // Voting Form Page
 function renderVotingPage() {
   const { categoryId } = router.pageParams;
-  const category = SAMPLE_DATA.votingCategories.find((c) => c.id === categoryId);
+  if (state.meeting.status !== 'active') return renderAttendeePage();
+  const category = state.getVotingCategories().find((c) => c.id === categoryId);
 
   if (!category) {
     return '<div class="text-center p-4">Category not found</div>';
@@ -11,11 +12,12 @@ function renderVotingPage() {
     return `
       <div class="min-h-screen bg-gray-50">
         <div class="container">
-          <div class="header">
+          <div class="header participant-page-header">
             <div class="flex gap-4" style="align-items: center;">
               <a href="#home" class="nav-link">← Home</a>
               <h1 style="margin: 0;">${category.name}</h1>
             </div>
+            ${renderAdminLink()}
           </div>
 
           <div class="p-4">
@@ -33,7 +35,7 @@ function renderVotingPage() {
     candidatesHtml += `
       <label class="radio-option">
         <input type="radio" name="candidate" value="${candidate.id}">
-        ${candidate.name}
+        ${escapeHtml(candidate.name)}
       </label>
     `;
   });
@@ -41,11 +43,12 @@ function renderVotingPage() {
   return `
     <div class="min-h-screen bg-gray-50">
       <div class="container">
-        <div class="header">
+        <div class="header participant-page-header">
           <div class="flex gap-4" style="align-items: center;">
             <a href="#home" class="nav-link">← Home</a>
             <h1 style="margin: 0;">${category.name}</h1>
           </div>
+          ${renderAdminLink()}
         </div>
 
         <div class="p-4">
@@ -64,28 +67,26 @@ function renderVotingPage() {
       </div>
     </div>
 
-    <script>
-      const votingForm = document.getElementById('votingForm');
-      const radioInputs = votingForm.querySelectorAll('input[type="radio"]');
-      const submitBtn = document.getElementById('submitBtn');
-
-      radioInputs.forEach((input) => {
-        input.addEventListener('change', () => {
-          submitBtn.disabled = false;
-        });
-      });
-
-      votingForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const selectedCandidate = votingForm.querySelector('input[type="radio"]:checked').value;
-        
-        state.submitVote('${categoryId}', selectedCandidate);
-        
-        // Show confirmation page
-        router.navigate('vote-confirmation');
-      });
-    </script>
   `;
+}
+
+function attachVotingEvents() {
+  const form = document.getElementById('votingForm');
+  if (!form) return;
+  form.addEventListener('change', () => {
+    document.getElementById('submitBtn').disabled = !form.querySelector('input[name="candidate"]:checked');
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (state.meeting.status !== 'active') {
+      router.navigateTo('home');
+      return;
+    }
+    const selected = form.querySelector('input[name="candidate"]:checked');
+    if (!selected) return;
+    state.submitVote(router.pageParams.categoryId, selected.value);
+    window.location.hash = 'vote-confirmation';
+  });
 }
 
 // Vote Confirmation Page
@@ -96,6 +97,7 @@ function renderVoteConfirmationPage() {
         <h2 class="text-center mb-4">Vote submitted</h2>
         <p class="text-center text-muted mb-6">Thank you for voting.</p>
         <a href="#home" class="btn btn-primary btn-block" style="text-align: center;">Back to Home</a>
+        <p class="text-center mt-4">${renderAdminLink()}</p>
       </div>
     </div>
   `;

@@ -29,12 +29,21 @@ class ToastmastersApp {
   }
 
   render() {
+    if (router.currentPage.startsWith('admin-') && router.currentPage !== 'admin-login'
+        && !localStorage.getItem('adminLoggedIn')) {
+      window.location.hash = 'admin/login';
+      return;
+    }
     const handler = router.getCurrentHandler();
     if (handler) {
       this.appElement.innerHTML = handler();
     } else {
       this.appElement.innerHTML = renderAttendeePage();
     }
+    attachFeedbackEvents();
+    attachVotingEvents();
+    attachAdminLoginEvents();
+    attachAdminEventListeners();
   }
 
   start() {
