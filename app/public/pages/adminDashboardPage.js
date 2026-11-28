@@ -19,6 +19,7 @@ function renderAdminDashboard() {
             <button type="button" data-action="sign-out" class="btn btn-link">Sign out</button>
           </div>
         </div>
+        <p id="adminAuthMessage" role="alert" class="text-center">${escapeHtml(adminAuth.signOutError)}</p>
         <nav class="admin-nav" aria-label="Administration">
           ${Object.entries(sections).map(([id, [label]]) => `
             <a href="#admin/${id}" class="tab admin-tab ${id === current ? 'active' : ''}">${label}</a>
@@ -181,9 +182,13 @@ function attachAdminEventListeners() {
   const content = document.getElementById('adminContent');
   if (!content) return;
 
-  document.querySelector('[data-action="sign-out"]').addEventListener('click', () => {
-    localStorage.removeItem('adminLoggedIn');
-    window.location.hash = 'admin/login';
+  document.querySelector('[data-action="sign-out"]').addEventListener('click', async () => {
+    try {
+      await adminAuth.signOut();
+    } catch (error) {
+      const message = document.getElementById('adminAuthMessage');
+      if (message) message.textContent = error.message;
+    }
   });
   content.addEventListener('click', (event) => {
     const button = event.target.closest('button[data-action]');

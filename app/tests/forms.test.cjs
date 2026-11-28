@@ -9,13 +9,19 @@ function element(properties = {}) {
   return {
     ...properties,
     addEventListener(type, handler) { listeners[type] = handler; },
-    dispatch(type) { listeners[type]({ preventDefault() {} }); },
+    dispatch(type) { return listeners[type]({ preventDefault() {} }); },
   };
 }
 
 function loadPage(file, elements, extra = {}) {
   const context = vm.createContext({
-    document: { getElementById: (id) => elements[id] || null },
+    document: {
+      getElementById: (id) => elements[id] || null,
+      querySelector: (selector) => {
+        const action = selector.match(/data-action="([^"]+)"/)?.[1];
+        return Object.values(elements).find((item) => item.dataset?.action === action) || null;
+      },
+    },
     window: { location: { hash: '' } },
     ...extra,
   });
@@ -65,14 +71,15 @@ test('voting form enables submission and records the selected candidate', () => 
   assert.equal(context.window.location.hash, 'vote-confirmation');
 });
 
-test('demo login attaches a submit handler and opens the dashboard', () => {
-  const elements = { adminLoginForm: element() };
-  let saved;
+test('Google sign-in button invokes Firebase authentication', async () => {
+  const googleButton = element({ dataset: { action: 'google-sign-in' }, disabled: false });
+  const elements = { googleButton, adminAuthMessage: element({ textContent: '' }) };
+  let signInCalled = false;
   const context = loadPage('adminLoginPage.js', elements, {
-    localStorage: { setItem: (...args) => { saved = args; } },
+    adminAuth: { signInWithGoogle: async () => { signInCalled = true; } },
   });
   context.attachAdminLoginEvents();
-  elements.adminLoginForm.dispatch('submit');
-  assert.deepEqual(saved, ['adminLoggedIn', 'true']);
-  assert.equal(context.window.location.hash, 'admin/dashboard');
+  await googleButton.dispatch('click');
+  assert.equal(signInCalled, true);
+  assert.equal(googleButton.disabled, true);
 });

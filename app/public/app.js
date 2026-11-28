@@ -4,6 +4,7 @@ class ToastmastersApp {
     this.appElement = document.getElementById('app');
     this.registerRoutes();
     this.setupRouter();
+    adminAuth.subscribe(() => this.render());
   }
 
   registerRoutes() {
@@ -29,9 +30,24 @@ class ToastmastersApp {
   }
 
   render() {
-    if (router.currentPage.startsWith('admin-') && router.currentPage !== 'admin-login'
-        && !localStorage.getItem('adminLoggedIn')) {
+    const isAdminRoute = router.currentPage.startsWith('admin-');
+    const isAdminLogin = router.currentPage === 'admin-login';
+
+    if (isAdminRoute && adminAuth.status === 'checking') {
+      this.appElement.innerHTML = renderAdminCheckingPage();
+      return;
+    }
+
+    if (isAdminLogin && adminAuth.status === 'authorized') {
+      window.location.hash = 'admin/dashboard';
+      this.appElement.innerHTML = renderAdminCheckingPage();
+      return;
+    }
+
+    if (isAdminRoute && !isAdminLogin && adminAuth.status !== 'authorized') {
       window.location.hash = 'admin/login';
+      this.appElement.innerHTML = renderAdminLoginPage();
+      attachAdminLoginEvents();
       return;
     }
     const handler = router.getCurrentHandler();

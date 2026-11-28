@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function appContext(signedIn) {
+function appContext(authStatus = 'signed-out') {
   const context = vm.createContext({
     structuredClone,
-    localStorage: { getItem: () => signedIn ? 'true' : null },
     router: { currentPage: 'admin-dashboard', pageParams: {} },
+    adminAuth: { status: authStatus, signOutError: '', user: null },
   });
   for (const file of [
     'data.js', 'state.js', 'pages/attendeePage.js', 'pages/feedbackPage.js',
@@ -19,10 +19,10 @@ function appContext(signedIn) {
   return context;
 }
 
-test('participant screens link to login or dashboard according to the admin session', () => {
-  for (const signedIn of [false, true]) {
-    const app = appContext(signedIn);
-    const destination = signedIn ? '#admin/dashboard' : '#admin/login';
+test('participant screens remain public and link to the appropriate Admin entry route', () => {
+  for (const authStatus of ['signed-out', 'authorized']) {
+    const app = appContext(authStatus);
+    const destination = authStatus === 'authorized' ? '#admin/dashboard' : '#admin/login';
     for (const status of ['ready', 'active', 'finished']) {
       vm.runInContext(`state.meeting.status = '${status}'`, app);
       assert.ok(app.renderAttendeePage().includes(`href="${destination}"`));
@@ -37,7 +37,7 @@ test('participant screens link to login or dashboard according to the admin sess
 });
 
 test('admin login and dashboard provide a participant link without replacing sign-out', () => {
-  const app = appContext(true);
+  const app = appContext();
   assert.match(app.renderAdminLoginPage(), /href="#home"[^>]*>[^<]*participant view/i);
   const dashboard = app.renderAdminDashboard();
   assert.match(dashboard, /href="#home"[^>]*>Participant view/);

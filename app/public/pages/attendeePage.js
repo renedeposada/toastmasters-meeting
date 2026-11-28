@@ -1,6 +1,6 @@
 // Attendee Home Page
 function renderAdminLink() {
-  const destination = localStorage.getItem('adminLoggedIn') ? 'dashboard' : 'login';
+  const destination = adminAuth.status === 'authorized' ? 'dashboard' : 'login';
   return `<a href="#admin/${destination}" class="nav-link">Admin</a>`;
 }
 
